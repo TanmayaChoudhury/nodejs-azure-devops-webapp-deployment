@@ -73,20 +73,8 @@ This project demonstrates how to build, deploy, and manage a **Node.js Express w
 
 ---
 
-## 📑 License
-
-MIT License
-
----
-
 ## 🙌 Author
 
-**Tanmay Choudhury**  
+**Tanmaya Choudhury**  
 *Azure DevOps Enthusiast | DevOps Engineer in Progress*
 
----
-
-## 📬 Contact
-
-For feedback or questions:  
-📧 [YourEmail@example.com]
