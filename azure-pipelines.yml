@@ -1,0 +1,114 @@
+# Node.js Express Web App to Linux on Azure
+# Build a Node.js Express app and deploy it to Azure as a Linux web app.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
+
+trigger:
+- node-express
+
+variables:
+
+  # Azure Resource Manager service connection name
+  azureSubscription: 'ServiceConnection'
+
+  # Web app name
+  webAppName: 'webappdfs7zhtm2qiqo'
+  
+  # Resource Group
+  resourceGroup: '460-743bb0f1-deploy-a-node-js-app-to-a-deployment'
+
+  # Agent VM image name
+  vmImageName: default
+
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      name: $(vmImageName)
+
+    steps:
+
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '20.x'
+      displayName: 'Install Node.js'
+
+    - script: |
+        npm install
+      displayName: 'npm install, build and test'
+
+    - task: CmdLine@2
+      inputs:
+        script: 'sudo apt-get -y install zip'
+      displayName: 'zip install'
+
+    - task: ArchiveFiles@2
+      displayName: 'Archive files'
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+        replaceExistingArchive: true
+
+    - upload: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+      artifact: drop
+
+- stage: Deploy
+  displayName: Deploy stage
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy
+    environment: $(webAppName)
+    pool:
+      name: $(vmImageName)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+          - task: AzureAppServiceManage@0
+            displayName: 'Start Azure App Service (dev slot)'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              Action: 'Start Azure App Service'
+              WebAppName: $(webAppName)
+              SpecifySlotOrASE: true
+              ResourceGroupName: $(resourceGroup)
+              Slot: 'dev'
+
+          - task: AzureWebApp@1
+            displayName: 'Azure Web App Deploy'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              appType: webAppLinux
+              appName: $(webAppName)
+              runtimeStack: 'NODE|20-lts'
+              deployToSlotOrASE: true
+              SlotName: 'dev'
+              package: $(Pipeline.Workspace)/drop/$(Build.BuildId).zip
+              startUpCommand: 'npm run start'
+
+          - task: AzureAppServiceManage@0
+            displayName: Swap Slot
+            inputs:
+              azureSubscription: $(azureSubscription)
+              Action: 'Swap Slots'
+              WebAppName: $(webAppName)
+              ResourceGroupName: $(resourceGroup)
+              SourceSlot: 'dev'
+
+          - task: AzureAppServiceManage@0
+            displayName: Stop Azure App Service
+            inputs:
+              azureSubscription: $(azureSubscription)
+              Action: 'Stop Azure App Service'
+              WebAppName: $(webAppName)
+              SpecifySlotOrASE: true
+              ResourceGroupName: $(resourceGroup)
+              Slot: 'dev'
